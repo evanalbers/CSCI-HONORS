@@ -3,8 +3,16 @@
 #PURPSOE: a file that holds the classes to be used in market simulation
 
 import random
-import riskfunction as rf
-import xmlrpc.client
+import utilityfunction as uf
+from threading import Thread
+import socket
+import sys
+from bid import Bid as b
+from ask import Ask as a
+from agentfunction import watch
+import universe_params as p
+
+HOST = "localhost"
 
 class Agent:
 
@@ -14,57 +22,86 @@ class Agent:
         - must be watching an instrument in order to evaluate / purchase it 
     """
 
-    risk_func = rf.RiskFunction()
+    utility_func = uf.UtilityFunction()
     watching = {}
 
 
     def __init__(self):
         
-        self.id = random.randrange(100)
+        self.id = random.randrange(10 ** (p.MAX_AGENT_ID_LENGTH)-1)
 
-        self.capital = random.randrange(100)
+        self.capital = random.randrange(10000)
 
         self.portfolio = {}
+
+        self.outstanding_bids = {}
+
+        self.outstanding_asks = {}
     
-    def purchase(self, instrument_id, quantity):
+    def evaluate(self, instrument_id, socket):
 
-        purchase_price = self.watching[instrument_id].purchase(quantity)
+        socket.send(("p" + str(instrument_id)).encode())
+        price = int(socket.recv(p.MAX_PRICE_DIGITS).decode())
+        expected_return = self.watching[instrument_id][0] / price
 
-        if instrument_id in self.portfolio and purchase_price != 0:
-            self.portfolio[instrument_id] += quantity
-            self.capital -= purchase_price * quantity
+        positive_utility = self.utility_func.calc_utility(expected_return, self.watching[instrument_id][1]) > self.utility_func.calc_utility(p.RFR, 0)
 
-        elif self.watching.purchase != 0:
-            self.portfolio[instrument_id] = quantity
-            self.capital -= purchase_price * quantity
+        if  positive_utility and self.capital > price and instrument_id not in self.outstanding_bids:
+            self.buy(instrument_id, price, socket)
 
-    def sell(self, instrument_id, quantity):
+        elif not positive_utility and self.portfolio[instrument_id] > 0 and instrument_id not in self.outstanding_asks:
+            self.sell(instrument_id, price, socket)
+ 
+        else:
+            expected_return = self.watching[instrument_id][0] / self.outstanding_bids[instrument_id].price + 1
+            positive_utility = self.utility_func.calc_utility(expected_return, self.watching[instrument_id][1]) > self.utility_func.calc_utility(p.RFR, 0)
+        
+        if positive_utility and self.capital > price:
+            self.buy(instrument_id, self.outstanding_bids[instrument_id].price + 1, socket)
 
-        #for the moment, only supports selling shares that are already owned
+        else: 
+            expected_return = self.watching[instrument_id][0] / self.outstanding_asks[instrument_id].price - 1
+            positive_utility = self.utility_func.calc_utility(expected_return, self.watching[instrument_id][1]) > self.utility_func.calc_utility(p.RFR, 0)
+        
+        if not positive_utility and self.portfolio[instrument_id] > 0:
+            self.sell(instrument_id, price - 1, socket)        
+        
 
-        sale_price = self.watching[instrument_id].sell(quantity)
+    def buy(self, instrument_id, price, socket):
+        if instrument_id in self.outstanding_bids:
+            return
 
-        if sale_price != 0:
-            self.portfolio[instrument_id] -= quantity
-            self.capital += quantity * sale_price
+        message = 'b' + str(instrument_id) + str(price)
+        self.outstanding_bids[instrument_id] = b.fromString(message)
+        socket.send(message.encode())
 
-    def evaluate(self, instrument_id):
+    def sell(self, instrument_id, price, socket):
+        message = 's' + str(self.id) + str(price)
+        self.outstanding_asks[instrument_id] = a.fromString(message)
+        socket.send(message.encode())
 
-        ret_percent = self.watching[instrument_id].get_dividend / self.watching[instrument_id].get_price
+    def confirm(self, instrument_id, type):
+        if type == 'a':
+            ask = self.outstanding_asks[instrument_id]
+            self.portfolio[instrument_id] -= 1
+            capital += ask.price
+        else:
+            bid = self.outstanding_bids[instrument_id]
+            self.portfolio[instrument_id] += 1
+            capital -= bid.price
+    
+    def set_expectations(self, instrument_id, expected_value, risk):
 
-        instrument_risk = self.watching[instrument_id].get_risk
+        self.watching[instrument_id] = (expected_value, risk)
 
-        if ret_percent > self.risk_func.calc_return(instrument_risk):
-            self.purchase(instrument_id, 1)
-        elif ret_percent < self.risk_func.calc_return(instrument_risk):
-            self.sell(instrument_id, 1)
+    def watch(self, instrument_id):
+
+        self.set_expectations(instrument_id, 1000, 5)
+    
+        thread = Thread(target=watch, args=[self, instrument_id])
+        thread.run()
 
 
-    def watch(self, instrument_id, server_url):
-        s = xmlrpc.client.ServerProxy(server_url)
-        self.watching[instrument_id] = s
-        while True:
-            self.evaluate(instrument_id)
 
 
     
