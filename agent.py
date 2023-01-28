@@ -20,6 +20,11 @@ class Agent:
     
     NOTES:
         - must be watching an instrument in order to evaluate / purchase it 
+        - Portfolio maps instrument IDs to tuples of following form: (expected return, risk  assesment, cov. assesment)
+        - General form of the "assumption set" -> set of assumptions an agent akes, that we might alter
+            - pairwise covariances for every asset in their portfolio
+            - expected return for every asset in their portfolio
+            - expected SD for every asset in portfolio
     """
 
     utility_func = uf.UtilityFunction()

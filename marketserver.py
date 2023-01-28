@@ -11,9 +11,13 @@ with the following guiding principles:
 
 NOTES: 
 
-    - Max bid is currently $1000, so too for ask
-    - Max number of instruments is 20
-    - these can be set dynamically, by submitting 
+    - Possible area of improvement: implement storing bids and asks 
+      in a binary search tree, this will make it a bit faster, should help when
+      agent counts balloon
+    - also need to implement support for agents removing orders, can be
+      done later though
+    - should add a function that broadcasts price changes to all agents 
+      connected to this server
 """
 
 from marketfunction import handleAgent
@@ -26,49 +30,45 @@ from matplotlib import pyplot as plt
 
 PORT = 1026
 
-
 LOCK = t.Lock()
 
 class MarketServer(socketserver.BaseRequestHandler):
 
-    global MAX_AGENT_ID_LENGTH 
-    global MAX_PRICE_DIGITS
-
     def __init__(self, instrument_id, ag_id_len, price_len):
 
-        MAX_AGENT_ID_LENGTH = ag_id_len
-        MAX_PRICE_DIGITS = price_len
-
-        #list of open connections
+        # list of open connections
         self.connections = {}
 
-        #map bids to agent id
+        # map bids to agent id
         self.bids = {}
 
-        #map asks to agent id
+        # map asks to agent id
         self.asks = {}
 
-        #current price of asset
+        # current price of asset
         self.price = 100
 
-        #instrument id of this market
+        # list of historical price data
+        self.historical_prices = []
+
+        # instrument id of this market
         self.id = instrument_id
 
-        #INET Streaming Socket
+        # INET Streaming Socket
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        #bind socket to public host, known port
+        # bind socket to public host, known port
         serversocket.bind(('', PORT))
 
-        #listening, can queue up to five before refusing connection - note not max connections, 
-        #simply letting server catch up here
+        # listening, can queue up to five before refusing connection - note not 
+        # max connections, simply letting server catch up here
         serversocket.listen(5)
 
         while True:
-            #accept connection
+            # accept connection
             (clientsocket, address) = serversocket.accept()
 
-            #threaded server, dispatching to run a thread to handle client 
+            # threaded server, dispatching to run a thread to handle client 
             agent = t.Thread(target=handleAgent, args=(clientsocket, self))
             print("starting new agent thread...")
             print(clientsocket)
@@ -80,8 +80,6 @@ class MarketServer(socketserver.BaseRequestHandler):
 
             self.bids[bid.bidder] = bid
             print("bid " + bid.toString())
-
-        
 
     def submitAsk(self, ask):
         global LOCK
@@ -108,7 +106,7 @@ class MarketServer(socketserver.BaseRequestHandler):
         with LOCK:
 
             max_bid_price = 0
-            #iterate over bids, find the minimum
+            # iterate over bids, find the minimum
             for bid in self.bids:
                 print(self.bids[bid].toString())
                 if self.bids[bid].price > max_bid_price:
@@ -121,14 +119,24 @@ class MarketServer(socketserver.BaseRequestHandler):
                     min_ask_price = self.asks[ask].price
                     min_ask = ask
             
-            if max_bid_price > min_ask_price and max_bid in self.bids and min_ask in self.asks:
+            if max_bid_price > min_ask_price and max_bid in self.bids \
+               and min_ask in self.asks:
                 
+                # set new price
                 self.price = (max_bid_price + min_ask_price) / 2
-                print("agent " + max_bid + " has purchased 1 share from agent " + min_ask + " for $" + str(self.price))
-                message = "t" + str(self.price)
+                self.historical_prices.append(self.price)
 
+                # print for readability
+                print("agent " + max_bid + \
+                      " has purchased 1 share from agent " + min_ask + \
+                      " for $" + str(self.price))
+                
+                # let agents know that trade has occured at new price
+                message = "t" + str(self.price)
                 self.connections[max_bid].send(message.encode())
                 self.connections[min_ask].send(message.encode())
+
+                # remove submissions involved with trade
                 self.bids.pop(max_bid)
                 self.asks.pop(min_ask)
                 
