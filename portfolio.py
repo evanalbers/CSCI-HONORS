@@ -1,10 +1,97 @@
 """
 Author: Evan Albers
 Version Date: 29 December 2022
-Summary: Class meant to represent portfolio of an agent, handles optimization, 
-         weight calculation, etc.
+Summary: series of functions to aid with portfolio calculation, to isolate
+         and help with debugging
+
+         Notes: 
+
+         - portfolio weights should be stored as a 2d array, 1st row is
+         the ticker of the asset, 2nd is the weight in the portfolio, 
+         can be negative, allowing for short selling
+
+         - should store tickers in alphabetical order, keep it consistent
+         They will be mapped to floats on such a basis, very important to
+         avoid confusion
+
 
 """
+
+import numpy as np
+import universe_params as up
+
+def calculate_expected_return(weights):
+    """
+    Returns the expected return of the given portfolio weights
+
+    Params
+    --------
+    weights : nparray
+        a 2D array in which the first row is the tickers, 2nd row is
+        corresponding weight in the portfolio
+    
+    Returns
+    --------
+    expected return : float
+        float representing the expected return of the portfolio
+    """
+
+    tickers = weights[0]
+
+    exp_return_data = getExpRetData(tickers)
+
+    expected_return = np.cross(weights, exp_return_data)
+
+    return expected_return
+
+
+def calculate_optimal_portfolio(tickers):
+    """
+    Returns a set of weights that represent the optimal portfolio weights for 
+    the given asset
+
+    Params
+    --------
+    tickers : array of floats representing the tickers to be assessed
+
+    Returns 
+    --------
+    weights : nparray
+        a 2D array in which the first row is the tickers, 2nd row is
+        corresponding weight in the portfolio
+    """
+
+    risk_matrix = getRiskMatrix(tickers)
+
+    exp_return_data = getExpRetData(tickers)
+
+    risk_free_vec = np.ones(exp_return_data.shape) * up.RFR
+
+    
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class Portfolio():
 
