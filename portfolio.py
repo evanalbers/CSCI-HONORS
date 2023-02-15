@@ -138,12 +138,10 @@ def calculate_optimal_portfolio(tickers):
     risk_free_vec = np.ones(exp_return_data.shape) * up.RFR
 
     numerator = np.matmul(inv(risk_matrix),(exp_return_data - risk_free_vec))
-    print(numerator)
 
-    denom = np.matmul(np.ones(exp_return_data.shape).T, np.matmul(inv(risk_matrix),(exp_return_data - risk_free_vec)))
-    print(np.ones(exp_return_data.shape).transpose())
+    denom = np.matmul(np.ones(risk_matrix.shape[0]).T, np.matmul(inv(risk_matrix),(exp_return_data - risk_free_vec)))
 
-    t = np.matmul(numerator,inv(denom))
+    t = numerator / denom
 
     return t
     
