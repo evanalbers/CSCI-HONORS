@@ -16,26 +16,96 @@ Summary: series of functions to aid with portfolio calculation, to isolate
 
 
 """
+EXAMPLE = "example_data.json"
 
+import json
 import numpy as np
+from numpy.linalg import inv
 import universe_params as up
+
+def getExpRetData(tickers):
+    """
+    Returns the expected return data associated with the given tickers 
+    as a numpy array
+
+    Parameters
+    ----------
+    tickers : list
+        a list of numbers representing the index of sought after assets
+
+    Returns
+    -------
+    exp_rets : nparray
+        an array of the corresponding expected returns    
+    """
+
+    with open(EXAMPLE) as f:
+
+        data = json.load(f)
+    
+    all_returns = data["mu"]
+    ticker_list = data["asset_tickers"]
+
+    # retrieve indices of tickers, append returns to list
+    exp_ret = []
+    for t in tickers:
+        exp_ret.append(all_returns[t])
+
+    return np.asarray(exp_ret)
+    
+def getRiskMatrix(tickers):
+    """
+    returns the risk matrix for given tickers
+    
+    Parameters
+    ----------
+    tickers : list
+        list of ints representing indices of sought after assets
+    
+    Returns
+    -------
+    risk_matrix : nparray
+        array of arrays, representing the variances, covariances of assets 
+        detailed in ticker
+    """
+
+    # retrieving data
+    with open(EXAMPLE) as f:
+
+        data = json.load(f)
+
+    all_asset_risk = data["variances"]
+    matrix = []
+
+    # subsetting overarching matrix
+    for i in tickers:
+        row = []
+        for j in tickers:
+            row.append(all_asset_risk[i][j])
+        matrix.append(row)
+    
+    risk_matrix = np.array(matrix)
+
+    return risk_matrix
+
 
 def calculate_expected_return(weights):
     """
     Returns the expected return of the given portfolio weights
 
-    Params
-    --------
+    Parameters
+    ----------
     weights : nparray
         a 2D array in which the first row is the tickers, 2nd row is
         corresponding weight in the portfolio
     
     Returns
-    --------
+    -------
     expected return : float
         float representing the expected return of the portfolio
     """
 
+    # tickers is a list of asset tickers in the portfolio as strings
     tickers = weights[0]
 
     exp_return_data = getExpRetData(tickers)
@@ -50,12 +120,12 @@ def calculate_optimal_portfolio(tickers):
     Returns a set of weights that represent the optimal portfolio weights for 
     the given asset
 
-    Params
-    --------
+    Parameters
+    ----------
     tickers : array of floats representing the tickers to be assessed
 
     Returns 
-    --------
+    -------
     weights : nparray
         a 2D array in which the first row is the tickers, 2nd row is
         corresponding weight in the portfolio
@@ -67,6 +137,15 @@ def calculate_optimal_portfolio(tickers):
 
     risk_free_vec = np.ones(exp_return_data.shape) * up.RFR
 
+    numerator = np.matmul(inv(risk_matrix),(exp_return_data - risk_free_vec))
+    print(numerator)
+
+    denom = np.matmul(np.ones(exp_return_data.shape).T, np.matmul(inv(risk_matrix),(exp_return_data - risk_free_vec)))
+    print(np.ones(exp_return_data.shape).transpose())
+
+    t = np.matmul(numerator,inv(denom))
+
+    return t
     
 
 
